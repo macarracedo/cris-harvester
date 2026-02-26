@@ -11,53 +11,57 @@ El portal de UVigo expone endpoints públicos para entidades como grupos, invest
 - ORM relacional + migraciones (SQLAlchemy + Alembic)
 - Scraping responsable: rate limiting, retries y opción de respetar robots.txt
 
-## Estructura del repo (propuesta)
+## Estructura del repo
 ```
 cris-harvester/
 ├── cris_harvester/
-├── domain/
-├── application/
-├── infrastructure/
-├── adapters/
-├── tests/
-├── fixtures/
+│   ├── adapters/
+│   ├── application/
+│   ├── domain/
+│   ├── infrastructure/
+│   └── cli.py
 ├── alembic/
-├── .github/
-├── copilot-instructions.md
-├── .copilot/
-├── skills/
+├── tests/
+│   └── fixtures/
 ├── AGENTS.md
+├── alembic.ini
+├── cli.py
 ├── requirements.txt
 └── README.md
 ```
 
-## Instalación
-```bash
+## Instalación (Windows / PowerShell)
+```powershell
 python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
 ## Configuración
 Variables de entorno recomendadas (con valores por defecto):
-- `DB_URL`: `sqlite:///data/cris.db`
-- `RATE_LIMIT_RPS`: `1.0`
-- `RESPECT_ROBOTS`: `true`
-- `USER_AGENT`: `cris-harvester/0.1 (contact: you@example.com)`
+- `CRIS_DB_URL`: `sqlite:///data/cris.db`
+- `CRIS_RATE_LIMIT_RPS`: `1.0`
+- `CRIS_RESPECT_ROBOTS`: `false` (placeholder; no se aplica robots.txt en el MVP)
+- `CRIS_USER_AGENT`: `cris-harvester/0.1 (contact: you@example.com)`
+- `CRIS_UVIGO_PUBLICATIONS_LIST_URL`: URL de listado de publicaciones (si quieres forzar un listado anual con parámetros)
 
 ## Migraciones
-```bash
+```powershell
 alembic upgrade head
 ```
 
 ## Uso (CLI)
-El CLI se implementa con Typer y se expone como `cris-harvester`.
+El CLI se implementa con Typer y se puede ejecutar vía módulo.
 
-Ejemplos:
-```bash
-cris-harvester scrape --portal uvigo --entity researchers --limit 50
-cris-harvester scrape --portal uvigo --entity publications --limit 200
-cris-harvester scrape --portal uvigo --all --limit 50
+Inicializar DB (si no usas Alembic todavía):
+```powershell
+python -m cris_harvester.cli init-db
+```
+
+Scrape con límite pequeño (MVP):
+```powershell
+python -m cris_harvester.cli scrape --portal uvigo --entity researchers --limit 5
+python -m cris_harvester.cli scrape --portal uvigo --entity publications --limit 5
 ```
 
 ## Añadir un portal nuevo
@@ -69,11 +73,6 @@ cris-harvester scrape --portal uvigo --all --limit 50
 pytest -q
 ```
 
-## Entidades mínimas persistidas
+## Entidades mínimas persistidas (MVP)
 - Researcher
-- Group
-- Funding (o Project)
 - Publication
-- Thesis
-
-Relaciones M:N mediante tablas puente.
