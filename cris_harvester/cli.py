@@ -93,11 +93,13 @@ async def _run_researcher_indicators(portal: str, limit: Optional[int]) -> None:
 @app.command("scrape")
 def scrape(
     portal: str = typer.Option("uvigo", help="Portal adapter"),
-    entity: str = typer.Option(..., help="Entity type (researchers, publications)"),
+    entity: str = typer.Option("publications", help="Entity type (publications only)"),
     limit: int = typer.Option(5, help="Limit number of detail pages"),
     year_min: Optional[int] = typer.Option(None, help="Min publication year filter"),
     year_max: Optional[int] = typer.Option(None, help="Max publication year filter"),
 ) -> None:
+    if entity != "publications":
+        raise typer.BadParameter("Only 'publications' scraping is supported.")
     asyncio.run(_run_scrape(portal, entity, limit, year_min, year_max))
 
 

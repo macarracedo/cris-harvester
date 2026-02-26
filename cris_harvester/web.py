@@ -230,7 +230,26 @@ def run_scrape_task(
                 if entity == "researchers" and isinstance(item, Researcher):
                     name = item.name
                     orcid = item.orcid or "-"
-                    _log_task(task_id, f"researcher name={name} orcid={orcid}")
+                    url_id = item.url_id or "-"
+                    department = item.department_name or "-"
+                    _log_task(task_id, f"researcher name={name} orcid={orcid} url_id={url_id} department={department}")
+            def _on_researcher_persist(item: Researcher) -> None:
+                name = item.name
+                orcid = item.orcid or "-"
+                url_id = item.url_id or "-"
+                department = item.department_name or "-"
+                _log_task(task_id, f"researcher_persist name={name} orcid={orcid} url_id={url_id} department={department}")
+
+            def _on_indicator_persist(item) -> None:
+                researcher_id = item.researcher_id or "-"
+                year = item.year or "-"
+                h_index = item.h_index if item.h_index is not None else "-"
+                citations = item.citations_count if item.citations_count is not None else "-"
+                publications = item.publications_count if item.publications_count is not None else "-"
+                _log_task(
+                    task_id,
+                    f"researcher_indicator researcher_id={researcher_id} year={year} h_index={h_index} citations={citations} publications={publications}",
+                )
             stats = await crawl_and_persist(
                 adapter,
                 http_client,
@@ -242,6 +261,8 @@ def run_scrape_task(
                 should_stop=_should_stop,
                 on_parsed=_on_parsed,
                 with_researcher_indicators=with_researcher_indicators,
+                on_researcher_persist=_on_researcher_persist,
+                on_researcher_indicator_persist=_on_indicator_persist,
             )
             with TASK_LOCK:
                 TASKS[task_id]["status"] = "completed"
@@ -379,6 +400,8 @@ class WebHandler(BaseHTTPRequestHandler):
             task_type = data.get("task_type", ["scrape"])[0]
             portal = data.get("portal", ["uvigo"])[0]
             entity = data.get("entity", [""])[0] or None
+            if task_type == "scrape" and entity and entity != "publications":
+                return self._send_json({"error": "Only 'publications' scraping is supported."}, status=400)
             limit_value = data.get("limit", [""])[0]
             limit = int(limit_value) if limit_value else None
             year_min_value = data.get("year_min", [""])[0]
@@ -476,6 +499,8 @@ class WebHandler(BaseHTTPRequestHandler):
 
         portal = data.get("portal", ["uvigo"])[0]
         entity = data.get("entity", ["publications"])[0]
+        if entity != "publications":
+            return self._send_json({"error": "Only 'publications' scraping is supported."}, status=400)
         limit = int(data.get("limit", ["5"])[0])
         year_min = data.get("year_min", [""])[0]
         year_max = data.get("year_max", [""])[0]

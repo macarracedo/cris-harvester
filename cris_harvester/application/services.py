@@ -105,6 +105,8 @@ async def crawl_and_persist(
     should_stop: Callable[[], bool] | None = None,
     on_parsed: Callable[[EntityModel], None] | None = None,
     with_researcher_indicators: bool = False,
+    on_researcher_persist: Callable[[Researcher], None] | None = None,
+    on_researcher_indicator_persist: Callable[[ResearcherIndicator], None] | None = None,
 ) -> CrawlStats:
     stats = CrawlStats()
     detail_urls: list[str] = []
@@ -177,6 +179,7 @@ async def crawl_and_persist(
                 researchers,
                 journals,
                 indicators,
+                on_researcher_persist=on_researcher_persist,
             )
             stats.persisted += pub_count
             logger.info(
@@ -206,6 +209,7 @@ async def crawl_and_persist(
                         uow,
                         pairs,
                         should_stop=should_stop,
+                        on_indicator_persist=on_researcher_indicator_persist,
                     )
                     logger.info(
                         "persist_researcher_indicators",
@@ -213,7 +217,12 @@ async def crawl_and_persist(
                         researcher_indicators=indicator_count,
                     )
         else:
-            persisted = persist_batch(uow, entity_type, list(pending))
+            persisted = persist_batch(
+                uow,
+                entity_type,
+                list(pending),
+                on_researcher_persist=on_researcher_persist,
+            )
             stats.persisted += persisted
             logger.info("persist_batch", entity=entity_type, persisted=persisted)
         pending.clear()
@@ -248,7 +257,12 @@ async def crawl_and_persist(
     return stats
 
 
-def persist_batch(uow: UnitOfWork, entity_type: EntityType, items: Sequence[EntityModel]) -> int:
+def persist_batch(
+    uow: UnitOfWork,
+    entity_type: EntityType,
+    items: Sequence[EntityModel],
+    on_researcher_persist: Callable[[Researcher], None] | None = None,
+) -> int:
     if not items:
         return 0
 
@@ -260,8 +274,12 @@ def persist_batch(uow: UnitOfWork, entity_type: EntityType, items: Sequence[Enti
                     "researcher_persist",
                     name=researcher.name,
                     orcid=researcher.orcid,
+                    url_id=researcher.url_id,
+                    department=researcher.department_name,
                     source_portal=researcher.source_portal,
                 )
+                if on_researcher_persist:
+                    on_researcher_persist(researcher)
             departments, centers, campuses, areas, groups = _build_lookup_items(researcher_items)
             if departments:
                 uow.departments.upsert_many(departments)
@@ -436,6 +454,7 @@ def persist_publication_bundle(
     researchers: Sequence[Researcher],
     journals: Sequence[Journal],
     indicators: Sequence[JournalIndicator],
+    on_researcher_persist: Callable[[Researcher], None] | None = None,
 ) -> tuple[int, int, int, int]:
     with uow:
         departments, centers, campuses, areas, groups = _build_lookup_items(researchers)
@@ -476,6 +495,18 @@ def persist_publication_bundle(
             else {}
         )
         _assign_lookup_ids(researchers, department_ids, center_ids, campus_ids, area_ids, group_ids)
+
+        for researcher in researchers:
+            logger.info(
+                "researcher_persist",
+                name=researcher.name,
+                orcid=researcher.orcid,
+                url_id=researcher.url_id,
+                department=researcher.department_name,
+                source_portal=researcher.source_portal,
+            )
+            if on_researcher_persist:
+                on_researcher_persist(researcher)
 
         journal_count = uow.journals.upsert_many(list(journals)) if journals else 0
         issn_map = uow.journals.get_ids_by_issn([journal.issn for journal in journals]) if journals else {}
@@ -522,6 +553,7 @@ async def update_researcher_indicators(
     limit: int | None = None,
     batch_size: int = 20,
     should_stop: Callable[[], bool] | None = None,
+    on_indicator_persist: Callable[[ResearcherIndicator], None] | None = None,
 ) -> int:
     with uow:
         researcher_pairs = uow.researchers.list_url_ids()
@@ -538,6 +570,9 @@ async def update_researcher_indicators(
         nonlocal persisted
         if not indicators:
             return
+        if on_indicator_persist:
+            for indicator in indicators:
+                on_indicator_persist(indicator)
         with uow:
             count = uow.researcher_indicators.upsert_many(list(indicators))
             uow.commit()
@@ -594,6 +629,7 @@ async def update_researcher_indicators_for_pairs(
     researcher_pairs: Sequence[tuple[int, int]],
     batch_size: int = 20,
     should_stop: Callable[[], bool] | None = None,
+    on_indicator_persist: Callable[[ResearcherIndicator], None] | None = None,
 ) -> int:
     if not researcher_pairs:
         return 0
@@ -607,6 +643,9 @@ async def update_researcher_indicators_for_pairs(
         nonlocal persisted
         if not indicators:
             return
+        if on_indicator_persist:
+            for indicator in indicators:
+                on_indicator_persist(indicator)
         with uow:
             count = uow.researcher_indicators.upsert_many(list(indicators))
             uow.commit()

@@ -113,6 +113,13 @@
         color: #e2e8f0;
         padding: 12px;
         border-radius: 8px;
+        height: 220px;
+        width: 100%;
+        box-sizing: border-box;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "Consolas", "Courier New", monospace;
       }
       .actions-row {
         display: grid;
@@ -137,7 +144,6 @@
             <label for="entity">Entidad</label>
             <select id="entity" name="entity">
               <option value="publications">Publications</option>
-              <option value="researchers">Researchers</option>
             </select>
 
             <label for="limit">Límite</label>
@@ -212,7 +218,7 @@
         <form id="schedule-form">
           <label for="schedule-type">Tipo</label>
           <select id="schedule-type" name="task_type">
-            <option value="scrape">Scrape (researchers/publications)</option>
+            <option value="scrape">Scrape (publications)</option>
             <option value="update-researcher-indicators">Actualizar indicadores</option>
           </select>
 
@@ -222,7 +228,6 @@
           <label for="schedule-entity">Entidad (solo scrape)</label>
           <select id="schedule-entity" name="entity">
             <option value="publications">Publications</option>
-            <option value="researchers">Researchers</option>
           </select>
 
           <label for="schedule-limit">Límite (opcional)</label>

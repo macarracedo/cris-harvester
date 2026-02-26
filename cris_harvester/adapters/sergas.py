@@ -225,18 +225,6 @@ class SergasAdapter(PortalAdapter):
                 meta_title = parser.css_first("meta[name='citation_title']")
                 if meta_title:
                     title = meta_title.attributes.get("content", "")
-            year = None
-            meta_date = parser.css_first("meta[name='citation_publication_date']")
-            if meta_date:
-                date_value = meta_date.attributes.get("content") or ""
-                match = re.search(r"(19|20)\d{2}", date_value)
-                if match:
-                    year = int(match.group(0))
-            if year is None:
-                text = normalize_space(parser.text())
-                match = re.search(r"(19|20)\d{2}", text)
-                if match:
-                    year = int(match.group(0))
             doi = ""
             for node in parser.css("a"):
                 href = node.attributes.get("href")
@@ -253,6 +241,23 @@ class SergasAdapter(PortalAdapter):
                 parser,
                 ["Data de publicación:", "Fecha de publicación:", "Data de publicacion:", "Publication date:"],
             )
+            year = None
+            meta_date = parser.css_first("meta[name='citation_publication_date']")
+            if meta_date:
+                date_value = meta_date.attributes.get("content") or ""
+                match = re.search(r"(19|20)\d{2}", date_value)
+                if match:
+                    year = int(match.group(0))
+            if year is None and publication_date:
+                match = re.search(r"(19|20)\d{2}", publication_date)
+                if match:
+                    year = int(match.group(0))
+            if year is None:
+                text = normalize_space(parser.text())
+                text = re.sub(r"issn\s*[:\-]?\s*\d{4}-\d{3}[\dxX]", "", text, flags=re.IGNORECASE)
+                match = re.search(r"(19|20)\d{2}", text)
+                if match:
+                    year = int(match.group(0))
 
             indicator_url = ""
             for node in parser.css("a"):
