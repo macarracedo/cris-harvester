@@ -84,6 +84,11 @@ La UI permite:
 - Ver logs de ejecución.
 - Pegar una URL de listado para ajustar filtros (se extraen `min/max`).
 
+### Capturas
+![Front web](./captura_web.png)
+
+![Scheduler](./scheduler.png)
+
 ## Añadir un portal nuevo
 1. Crea `cris_harvester/adapters/<portal>.py` implementando `PortalAdapter`.
 2. Implementa `seed_endpoints`, paginación, `parse_list_page` y `parse_entity`.
