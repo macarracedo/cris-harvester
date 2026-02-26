@@ -32,6 +32,15 @@ def to_abs_url(base_url: str, href: str) -> str:
     return urljoin(base_url, href)
 
 
+def normalize_doi(doi: str) -> str:
+    value = normalize_space(doi)
+    if not value:
+        return ""
+    value = value.replace("https://doi.org/", "").replace("http://doi.org/", "")
+    value = value.replace("doi:", "").replace("DOI:", "")
+    return normalize_space(value)
+
+
 def split_person_name(full_name: str) -> tuple[str, str]:
     name = normalize_space(full_name)
     if not name:

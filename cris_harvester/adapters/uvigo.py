@@ -7,8 +7,8 @@ from urllib.parse import urljoin, urlparse
 from selectolax.lexbor import LexborHTMLParser
 
 from cris_harvester.application.ports import EntityType, PortalAdapter
-from cris_harvester.domain.models import AuthorRef, JournalIndicator, Publication, Researcher
-from cris_harvester.infrastructure.parsing import normalize_space, select_first_text, split_person_name, to_abs_url
+from cris_harvester.domain.models import AuthorRef, JournalIndicator, Publication, Researcher, ResearcherIndicator
+from cris_harvester.infrastructure.parsing import normalize_doi, normalize_space, select_first_text, to_abs_url
 
 
 class UVigoAdapter(PortalAdapter):
@@ -44,6 +44,32 @@ class UVigoAdapter(PortalAdapter):
         parts = [part for part in parsed.path.split("/") if part]
         return len(parts) >= 2
 
+    def get_document_code(self, url: str) -> str | None:
+        parsed = urlparse(url)
+        parts = [part for part in parsed.path.split("/") if part]
+        if len(parts) >= 2 and parts[0] == "documentos":
+            return parts[1]
+        return None
+
+    def get_researcher_url_id(self, url: str) -> int | None:
+        parsed = urlparse(url)
+        parts = [part for part in parsed.path.split("/") if part]
+        if len(parts) >= 2 and parts[0] == "investigadores":
+            try:
+                return int(parts[1])
+            except ValueError:
+                return None
+        return None
+
+    def build_researcher_detail_url(self, url_id: int) -> str:
+        return f"{self.base_url}/investigadores/{url_id}/detalle"
+
+    def build_researcher_indicator_urls(self, url_id: int) -> dict[str, str]:
+        return {
+            "impacto": f"{self.base_url}/indicadores/impacto?persona={url_id}",
+            "otros": f"{self.base_url}/indicadores/otros?persona={url_id}",
+        }
+
     def _extract_label_value(self, parser: LexborHTMLParser, labels: list[str]) -> str:
         for node in parser.css("li, p, div, span"):
             text = normalize_space(node.text())
@@ -73,6 +99,11 @@ class UVigoAdapter(PortalAdapter):
             raise ValueError(f"Unsupported entity type: {entity_type}")
         seed_url = seeds[entity_type]
         if entity_type == "researchers":
+            for page in range(1, self.max_list_pages + 1):
+                separator = "&" if "?" in seed_url else "?"
+                yield f"{seed_url}{separator}page={page}"
+            return
+        if entity_type == "publications":
             for page in range(1, self.max_list_pages + 1):
                 separator = "&" if "?" in seed_url else "?"
                 yield f"{seed_url}{separator}page={page}"
@@ -157,15 +188,35 @@ class UVigoAdapter(PortalAdapter):
                 if href and "orcid.org" in href:
                     orcid = href.split("orcid.org/")[-1]
                     break
+            email = ""
+            mail_node = parser.css_first("a[href^='mailto:']")
+            if mail_node:
+                mail_href = mail_node.attributes.get("href")
+                if mail_href and "mailto:" in mail_href:
+                    email = mail_href.replace("mailto:", "")
+            if not email:
+                email = self._extract_label_value(parser, ["Correo:", "E-mail:", "Email:"])
+
+            department_name = self._extract_label_value(parser, ["Departamento:"])
+            center_name = self._extract_label_value(parser, ["Centro:"])
+            campus_name = self._extract_label_value(parser, ["Campus:"])
+            area_name = self._extract_label_value(parser, ["Área:", "Area:"])
+            group_name = self._extract_label_value(
+                parser,
+                ["Grupo de investigación:", "Grupo de investigacion:", "Grupo de investigación", "Grupo de investigacion"],
+            )
             name = normalize_space(name or "") or "Unknown"
-            given_name, family_name = split_person_name(name)
             return Researcher(
                 source_portal=self.portal_name,
-                source_url=url,
+                url_id=self.get_researcher_url_id(url),
                 name=name,
-                given_name=given_name or None,
-                family_name=family_name or None,
                 orcid=orcid or None,
+                email=normalize_space(email) or None,
+                department_name=department_name or None,
+                center_name=center_name or None,
+                campus_name=campus_name or None,
+                area_name=area_name or None,
+                research_group_name=group_name or None,
             )
 
         if entity_type == "publications":
@@ -218,22 +269,24 @@ class UVigoAdapter(PortalAdapter):
                 href = node.attributes.get("href")
                 if href and "/investigadores/" in href:
                     author_name = normalize_space(node.text())
-                    given, family = split_person_name(author_name)
+                    url_id = self.get_researcher_url_id(href)
                     authors.append(
                         AuthorRef(
                             name=author_name or "Unknown",
-                            given_name=given or None,
-                            family_name=family or None,
-                            source_url=to_abs_url(self.base_url, href),
+                            url_id=url_id,
                         )
                     )
             title = normalize_space(title or "") or "Untitled"
+            document_code = self.get_document_code(url)
+            if not document_code:
+                raise ValueError("Missing document code in URL")
             return Publication(
                 source_portal=self.portal_name,
                 source_url=url,
+                document_code=document_code,
                 title=title,
                 year=year,
-                doi=normalize_space(doi) or None,
+                doi=normalize_doi(doi) or None,
                 publication_date=publication_date or None,
                 journal_title=journal_title or None,
                 journal_issn=journal_issn or None,
@@ -270,9 +323,39 @@ class UVigoAdapter(PortalAdapter):
             year = int(match.group(0))
 
         return JournalIndicator(
-            source_portal=self.portal_name,
-            source_url=url,
             journal_issn=journal_issn,
             year=year,
             metrics=metrics,
+        )
+
+    def parse_researcher_indicators(self, html_by_key: dict[str, str], url_id: int) -> ResearcherIndicator:
+        h_index = None
+        citations = None
+        publications = None
+
+        other_html = html_by_key.get("otros")
+        if other_html:
+            parser = LexborHTMLParser(other_html)
+            text = normalize_space(parser.text()).lower()
+            h_match = re.search(r"h-index\s*[:\-]?\s*(\d+)", text)
+            if h_match:
+                h_index = int(h_match.group(1))
+            cit_match = re.search(r"citas[^\d]*(\d+)", text)
+            if cit_match:
+                citations = int(cit_match.group(1))
+
+        impact_html = html_by_key.get("impacto")
+        if impact_html:
+            parser = LexborHTMLParser(impact_html)
+            text = normalize_space(parser.text()).lower()
+            counts = [int(value) for value in re.findall(r"(\d+)\s+(?:publicaci[óo]ns|artigos)", text)]
+            if counts:
+                publications = max(counts)
+
+        return ResearcherIndicator(
+            researcher_id=None,
+            year=None,
+            h_index=h_index,
+            publications_count=publications,
+            citations_count=citations,
         )

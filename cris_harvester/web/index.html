@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CRIS Harvester - Control</title>
+    <style>
+      html, body {
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        margin: 0;
+        background: #f6f7fb;
+        color: #1f2937;
+      }
+      header {
+        background: #0f172a;
+        color: #f8fafc;
+        padding: 16px 24px;
+      }
+      main {
+        max-width: 1280px;
+        margin: 16px auto 40px;
+        padding: 16px;
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 12px;
+        box-sizing: border-box;
+      }
+      .schedule-layout {
+        max-width: 1280px;
+        margin: 0 auto 40px;
+        padding: 16px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        box-sizing: border-box;
+      }
+      .card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+      }
+      h1, h2 {
+        margin: 0 0 12px;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      input, select, button {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid #cbd5f5;
+        margin-bottom: 10px;
+        font-size: 14px;
+      }
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .checkbox-row input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+      }
+      button {
+        background: #2563eb;
+        color: #fff;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+      }
+      .layout-left {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .layout-right {
+        display: flex;
+        flex-direction: column;
+      }
+      .badge {
+        background: #e2e8f0;
+        border-radius: 999px;
+        padding: 6px 12px;
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      th, td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #e2e8f0;
+        text-align: left;
+      }
+      #logs {
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 12px;
+        border-radius: 8px;
+      }
+      .actions-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>CRIS Harvester</h1>
+      <p>Panel de control para scraping y métricas</p>
+    </header>
+    <main>
+      <div class="layout-left">
+        <section class="card">
+          <h2>Iniciar scraping</h2>
+          <form id="scrape-form">
+            <label for="portal">Portal</label>
+            <select id="portal" name="portal"></select>
+
+            <label for="entity">Entidad</label>
+            <select id="entity" name="entity">
+              <option value="publications">Publications</option>
+              <option value="researchers">Researchers</option>
+            </select>
+
+            <label for="limit">Límite</label>
+            <input type="number" id="limit" name="limit" min="1" value="10" />
+
+            <div class="grid">
+              <div>
+                <label for="year_min">Año mínimo</label>
+                <input type="number" id="year_min" name="year_min" placeholder="2026" />
+              </div>
+              <div>
+                <label for="year_max">Año máximo</label>
+                <input type="number" id="year_max" name="year_max" placeholder="2026" />
+              </div>
+            </div>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="with_researcher_indicators" name="with_researcher_indicators" />
+              Scrape indicadores de investigadores al buscar publicaciones
+            </label>
+
+            <button type="submit">Iniciar</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Indicadores de investigadores</h2>
+          <form id="indicator-form">
+            <label for="indicator-portal">Portal</label>
+            <select id="indicator-portal" name="portal"></select>
+
+            <label for="indicator-limit">Límite (opcional)</label>
+            <input type="number" id="indicator-limit" name="limit" min="1" placeholder="100" />
+
+            <button type="submit">Actualizar indicadores</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Indicadores de base de datos</h2>
+          <div class="grid" id="stats"></div>
+          <div class="badge" id="last-task"></div>
+          <div class="actions-row">
+            <button id="init-db">Inicializar DB</button>
+          </div>
+        </section>
+      </div>
+
+      <section class="card layout-right">
+        <h2>Tareas en ejecución</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Estado</th>
+              <th>Portal</th>
+              <th>Entidad</th>
+              <th>Límite</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tasks"></tbody>
+        </table>
+        <h3>Logs de tarea</h3>
+        <pre id="logs"></pre>
+      </section>
+    </main>
+
+    <section class="schedule-layout">
+      <section class="card">
+        <h2>Programar tareas</h2>
+        <form id="schedule-form">
+          <label for="schedule-type">Tipo</label>
+          <select id="schedule-type" name="task_type">
+            <option value="scrape">Scrape (researchers/publications)</option>
+            <option value="update-researcher-indicators">Actualizar indicadores</option>
+          </select>
+
+          <label for="schedule-portal">Portal</label>
+          <select id="schedule-portal" name="portal"></select>
+
+          <label for="schedule-entity">Entidad (solo scrape)</label>
+          <select id="schedule-entity" name="entity">
+            <option value="publications">Publications</option>
+            <option value="researchers">Researchers</option>
+          </select>
+
+          <label for="schedule-limit">Límite (opcional)</label>
+          <input type="number" id="schedule-limit" name="limit" min="1" placeholder="100" />
+
+          <div class="grid">
+            <div>
+              <label for="schedule-year-min">Año mínimo</label>
+              <input type="number" id="schedule-year-min" name="year_min" placeholder="2026" />
+            </div>
+            <div>
+              <label for="schedule-year-max">Año máximo</label>
+              <input type="number" id="schedule-year-max" name="year_max" placeholder="2026" />
+            </div>
+          </div>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="schedule-with-indicators" name="with_researcher_indicators" />
+            Scrape indicadores de investigadores al buscar publicaciones
+          </label>
+
+          <div class="grid">
+            <div>
+              <label for="schedule-start">Inicio</label>
+              <input type="datetime-local" id="schedule-start" name="start_at" />
+            </div>
+            <div>
+              <label for="schedule-frequency">Frecuencia (días)</label>
+              <input type="number" id="schedule-frequency" name="frequency_days" min="1" value="1" />
+            </div>
+          </div>
+
+          <div class="grid">
+            <div>
+              <label for="schedule-end">Fin (opcional)</label>
+              <input type="datetime-local" id="schedule-end" name="end_at" />
+            </div>
+            <div>
+              <label for="schedule-runs">Nº ejecuciones (opcional)</label>
+              <input type="number" id="schedule-runs" name="max_runs" min="1" placeholder="10" />
+            </div>
+          </div>
+
+          <button type="submit">Programar</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Tareas programadas</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Tipo</th>
+              <th>Portal</th>
+              <th>Entidad</th>
+              <th>Frecuencia (d)</th>
+              <th>Próxima ejecución</th>
+              <th>Ejecuciones</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="schedules"></tbody>
+        </table>
+      </section>
+    </section>
+
+    <script>
+      const portalSelect = document.getElementById("portal");
+      const indicatorPortalSelect = document.getElementById("indicator-portal");
+      const schedulePortalSelect = document.getElementById("schedule-portal");
+      const statsContainer = document.getElementById("stats");
+      const tasksBody = document.getElementById("tasks");
+      const schedulesBody = document.getElementById("schedules");
+      const logsContainer = document.getElementById("logs");
+      let selectedTaskId = null;
+
+      async function loadAdapters() {
+        const resp = await fetch("/api/adapters");
+        const data = await resp.json();
+        const options = data.adapters
+          .map((adapter) => `<option value="${adapter}">${adapter}</option>`)
+          .join("");
+        portalSelect.innerHTML = options;
+        indicatorPortalSelect.innerHTML = options;
+        schedulePortalSelect.innerHTML = options;
+      }
+
+      function renderStats(stats) {
+        statsContainer.innerHTML = Object.entries(stats)
+          .map(
+            ([key, value]) => `
+              <div class="badge">${key}: ${value}</div>
+            `
+          )
+          .join("");
+      }
+
+      function renderTasks(tasks) {
+        const rows = Object.entries(tasks)
+          .map(
+            ([id, task]) => `
+              <tr>
+                <td>${id}</td>
+                <td>${task.status}</td>
+                <td>${task.portal}</td>
+                <td>${task.entity}</td>
+                <td>${task.limit}</td>
+                <td>
+                  <button data-task="${id}" class="stop-btn">Detener</button>
+                  <button data-task="${id}" class="log-btn">Logs</button>
+                </td>
+              </tr>
+            `
+          )
+          .join("");
+        tasksBody.innerHTML = rows || "<tr><td colspan='6'>Sin tareas</td></tr>";
+
+        document.querySelectorAll(".stop-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const taskId = btn.getAttribute("data-task");
+            await fetch("/api/stop", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({ task_id: taskId }),
+            });
+            refreshStats();
+          });
+        });
+
+        document.querySelectorAll(".log-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            selectedTaskId = btn.getAttribute("data-task");
+            await refreshLogs();
+          });
+        });
+      }
+
+      function renderSchedules(schedules) {
+        const rows = schedules
+          .map(
+            (task) => `
+              <tr>
+                <td>${task.id}</td>
+                <td>${task.task_type}</td>
+                <td>${task.portal}</td>
+                <td>${task.entity || "-"}</td>
+                <td>${task.frequency_days}</td>
+                <td>${task.next_run_at || "-"}</td>
+                <td>${task.run_count}${task.max_runs ? " / " + task.max_runs : ""}</td>
+                <td>${task.status}</td>
+                <td>
+                  <button data-schedule="${task.id}" class="disable-schedule">Desactivar</button>
+                </td>
+              </tr>
+            `
+          )
+          .join("");
+        schedulesBody.innerHTML = rows || "<tr><td colspan='9'>Sin tareas programadas</td></tr>";
+
+        document.querySelectorAll(".disable-schedule").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const scheduleId = btn.getAttribute("data-schedule");
+            await fetch("/api/schedule/disable", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({ schedule_id: scheduleId }),
+            });
+            refreshSchedules();
+          });
+        });
+      }
+
+      async function refreshStats() {
+        const resp = await fetch("/api/stats");
+        const data = await resp.json();
+        renderStats(data.stats);
+        renderTasks(data.tasks || {});
+        const lastTask = Object.values(data.tasks || {}).slice(-1)[0];
+        if (lastTask && lastTask.stats) {
+          document.getElementById("last-task").textContent =
+            `Última tarea: persisted=${lastTask.stats.persisted} skipped=${lastTask.stats.skipped_existing || 0} errors=${lastTask.stats.errors}`;
+        }
+      }
+
+      async function refreshSchedules() {
+        const resp = await fetch("/api/schedules");
+        const data = await resp.json();
+        renderSchedules(data.schedules || []);
+      }
+
+      async function refreshLogs() {
+        if (!selectedTaskId) {
+          logsContainer.textContent = "Selecciona una tarea para ver logs.";
+          return;
+        }
+        const resp = await fetch(`/api/logs?task_id=${selectedTaskId}`);
+        const data = await resp.json();
+        logsContainer.textContent = (data.logs || []).join("\n");
+      }
+
+      document.getElementById("scrape-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const params = new URLSearchParams(formData);
+        await fetch("/api/scrape", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params,
+        });
+        refreshStats();
+      });
+
+      document.getElementById("indicator-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const params = new URLSearchParams(formData);
+        await fetch("/api/update-researcher-indicators", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params,
+        });
+        refreshStats();
+      });
+
+      document.getElementById("schedule-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const params = new URLSearchParams(formData);
+        await fetch("/api/schedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params,
+        });
+        refreshSchedules();
+      });
+
+      document.getElementById("init-db").addEventListener("click", async () => {
+        if (!confirm("¿Seguro? Esto reinicia la base de datos.")) {
+          return;
+        }
+        await fetch("/api/init-db", { method: "POST" });
+        refreshStats();
+      });
+
+      loadAdapters();
+      refreshStats();
+      refreshSchedules();
+      setInterval(refreshStats, 5000);
+      setInterval(refreshLogs, 3000);
+      setInterval(refreshSchedules, 15000);
+    </script>
+  </body>
+</html>
